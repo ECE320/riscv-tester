@@ -1,5 +1,7 @@
 # Overview
 
+**Authors: Justin Mendes and Shazil Razzaq**
+
 Tests the functionality of your RV32UI processor by executing test_pd with Verilator and verifying the results with a mock RV32UI processor created in Python.
 
 1. Runs all of the `*.x` tests in the benchmarks (rv32-benchmarks).
@@ -13,6 +15,7 @@ Tests the functionality of your RV32UI processor by executing test_pd with Veril
 2. In `/project/pd4/verif/scripts` enter `python3 test.py <PATH to /rv32-benchmarks>`
 
 
+<img width="560" alt="image" src="https://user-images.githubusercontent.com/50083088/196791253-b04d6503-5fe4-404c-a53e-4e4c0aa3e5cf.png">
 
 If your output looks like this, you're processor is likely good to go!
 
