@@ -1,5 +1,7 @@
 # Overview
 
+**Authors: Justin Mendes and Shazil Razzaq**
+
 Tests the functionality of your RV32UI processor by executing test_pd with Verilator and verifying the results with a mock RV32UI processor created in Python.
 
 1. Runs all of the `*.x` tests in the benchmarks (rv32-benchmarks).
