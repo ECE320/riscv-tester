@@ -107,7 +107,7 @@ def main():
             if SHOW_INSTR: cmd.append("-i")
             if SHOW_INSTR_NO_NUM: cmd.append("-in")
             if SHOW_REG: cmd.append("-r")
-            if STOP_ON_ERR: cmd.append("-s")
+            if not STOP_ON_ERR: cmd.append("-s")
             if MEM_DEPTH: 
                 cmd.append("-m")
                 cmd.append(str(MEM_DEPTH))
