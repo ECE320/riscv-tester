@@ -146,3 +146,10 @@ Number of bytes (8-bit values) in data memory (memory).
 `python3 parse.py -i -r ../data/rv32ui-p-add.trace`
 
 `python3 parse.py --skip -m 1024000 ../tests/out/BubbleSort.trace -i`
+
+
+# Future Versions
+
+## v1.2
+
+1. Add support for flags `-pd1` `-pd2` `-pd3` `-pd4` `-pd5` to allow user to isolate which project they would like to test up to.
