@@ -1,7 +1,7 @@
 """
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Wednesday October 19, 2022
+    Last Modified: Sunday October 23, 2022
     Version: v1.1
     
     Runs all of the *.x tests in the benchmarks
@@ -49,6 +49,7 @@ def main():
     parser.add_argument("-i", "--instructions", dest="instructions", action="store_true", help="parse.py: Print all instructions in RISC-V format (Default: False, instructions enumerated)")
     parser.add_argument("-in", "--instructions-no-num", dest="instructions_no_num", action="store_true", help="parse.py: Print all instructions in RISC-V format (Default: False, instructions NOT enumerated)")
     parser.add_argument("-r", "--regfile", dest="regfile", action="store_true", help="parse.py: Print the state of the Register File at each [R] (Default: False)")
+    parser.add_argument("-t", "--terminate", "--ecall", dest="ecall", action="store_true", help="End (terminate) the parse.py check at the first ECALL instruction (Default: False)")
     parser.add_argument("-s", "--skip", dest="skip", action="store_false", help="parse.py: Stop execution on errors (Default: True)")
     parser.add_argument("-m", "--mem", dest="mem", type=int, default=1048576, metavar="MEM_DEPTH", help="parse.py: Number of bytes (8-bit values) in data memory (dmemory). (Default: 1048576)")
 
@@ -62,6 +63,7 @@ def main():
     SHOW_INSTR = args.instructions
     SHOW_INSTR_NO_NUM = args.instructions_no_num
     SHOW_REG = args.regfile
+    END_ON_ECALL = args.ecall
     STOP_ON_ERR = args.skip
     MEM_DEPTH = args.mem # # of bytes (8-bit values)
 
@@ -107,6 +109,7 @@ def main():
             if SHOW_INSTR: cmd.append("-i")
             if SHOW_INSTR_NO_NUM: cmd.append("-in")
             if SHOW_REG: cmd.append("-r")
+            if END_ON_ECALL: cmd.append("-t")
             if not STOP_ON_ERR: cmd.append("-s")
             if MEM_DEPTH: 
                 cmd.append("-m")

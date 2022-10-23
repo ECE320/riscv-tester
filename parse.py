@@ -1,12 +1,12 @@
 """
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Monday October 19, 2022
+    Last Modified: Sunday October 23, 2022
     Version: v1.1
 
     Tests functionality of RISC-V processor up to PD4
 
-    USAGE:  python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] <PATH to .trace file>
+    USAGE:  python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] [-t/--terminate/--ecall] <PATH to .trace file>
 
     EX:     python3 parse.py rv32ui-p-sltiu.trace
 
@@ -21,6 +21,8 @@
         Print all instructions in RISC-V format (Default: False)
     -- -r for register file: 
         Print the state of the Register File at each [R] (Default: False)
+    -- -t to terminate the program on ECALL:
+        Stop checking on ECALL to avoid parsing check beyond the scope of the program
     -- -skip for skip on errors (i.e. don't stop on errors): 
         Stop execution on errors (Default: True)
     -- -m <MEM_DEPTH>: 
@@ -248,6 +250,9 @@ def print_instruction(instruction_bin, instr_num = None):
 
     elif(is_register_type(instruction)):
         print(f'{index_out}{instruction} x{rd}, x{rs1}, x{rs2}')
+
+    elif(instruction == "ECALL"):
+        print("ECALL")
 
 
 # *** Getters: Instruction Binary Extraction Functions
@@ -1276,6 +1281,7 @@ def main():
     parser.add_argument("-i", "--instructions", dest="instructions", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions enumerated)")
     parser.add_argument("-in", "--instructions-no-num", dest="instructions_no_num", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions NOT enumerated)")
     parser.add_argument("-r", "--regfile", dest="regfile", action="store_true", help="Print the state of the Register File at each [R] (Default: False)")
+    parser.add_argument("-t", "--terminate", "--ecall", dest="ecall", action="store_true", help="End (terminate) the parse.py check at the first ECALL instruction (Default: False)")
     parser.add_argument("-s", "--skip", dest="skip", action="store_false", help="CONTINUE execution on errors (Default: True)")
     parser.add_argument("-m", "--mem", dest="mem", type=int, default=1048576, metavar="MEM_DEPTH", help="Number of bytes (8-bit values) in data memory (dmemory). (Default: 1048576)")
     args = parser.parse_args()
@@ -1284,6 +1290,7 @@ def main():
     SHOW_INSTR = args.instructions
     SHOW_INSTR_NO_NUM = args.instructions_no_num
     SHOW_REG = args.regfile
+    END_ON_ECALL = args.ecall
     STOP_ON_ERR = args.skip
     MEM_DEPTH = args.mem # # of bytes (8-bit values)
 
@@ -1372,6 +1379,9 @@ def main():
                 if(STOP_ON_ERR and not success and instruction != "N/A"):
                     print(f'\n{"Stopping execution..." if STOP_ON_ERR else ""}\n')
                     break
+                if(END_ON_ECALL and instruction == "ECALL"):
+                     print(f'\nECALL: $finish (end of program)\n')
+                     break
 
                         
         elif(line[1] == 'R'):

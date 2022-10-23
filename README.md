@@ -80,10 +80,11 @@ Add this flag to VERIFY the trace files of the tests **only** (runs [parse.py](#
 Flags forwarded to [parse.py](##format-1):
 
 1. `-s`/`--skip`
-2. `-i`/`--instructions`
-3. `-in`/`--instructions-no-mem`
-4. `-r`/`--regfile`
-5. `-m <MEM_DEPTH>`
+2. `-t`/`--terminate`/`--ecall`
+3. `-i`/`--instructions`
+4. `-in`/`--instructions-no-mem`
+5. `-r`/`--regfile`
+6. `-m <MEM_DEPTH>`
 
 
 ## Examples
@@ -92,7 +93,7 @@ Flags forwarded to [parse.py](##format-1):
 
 `python3 test.py -e ../../../../../rv32-benchmarks`
 
-`python3 test.py -i -r ../../../../../rv32-benchmarks --verify`
+`python3 test.py -i -r -t ../../../../../rv32-benchmarks --verify`
 
 `python3 test.py -v --skip -m 1024000 /home/ece320/rv32-benchmarks -i`
 
@@ -122,19 +123,23 @@ Path to .trace file from executing a `*.x` testbench: `make run VERILATOR=1 TEST
 
 CONTINUE execution on errors.
 
-2. `-i`/`--instructions`: Default: **False**
+2. `-t`/`--terminate`/`--ecall`: Default: **False**
+
+Terminate/End the program and stop the checks at the first ECALL instruction.
+
+3. `-i`/`--instructions`: Default: **False**
 
 Print all instructions in RISC-V format (instructions enumerated).
 
-3. `-in`/`--instructions-no-num`: Default: **False**
+4. `-in`/`--instructions-no-num`: Default: **False**
 
 Print all instructions in RISC-V format (instructions NOT enumerated).
 
-4. `-r`/`--regfile`: Default: **False**
+5. `-r`/`--regfile`: Default: **False**
 
 Print the state of the Register File at each [R] in the .trace file.
 
-5. `-m <MEM_DEPTH>`/`--mem <MEM_DEPTH>`: Default: **-m 1048576**
+6. `-m <MEM_DEPTH>`/`--mem <MEM_DEPTH>`: Default: **-m 1048576**
 
 Number of bytes (8-bit values) in data memory (memory).
 
@@ -143,7 +148,7 @@ Number of bytes (8-bit values) in data memory (memory).
 
 `python3 parse.py ../sim/verilator/test_pd/rv32ui-p-sltiu.trace -in -s`
 
-`python3 parse.py -i -r ../data/rv32ui-p-add.trace`
+`python3 parse.py -i -r -t ../data/rv32ui-p-add.trace`
 
 `python3 parse.py --skip -m 1024000 ../tests/out/BubbleSort.trace -i`
 
