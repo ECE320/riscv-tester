@@ -1,14 +1,14 @@
 """
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Sunday October 23, 2022
-    Version: v1.1
+    Last Modified: Sunday October 30, 2022
+    Version: v1.2
 
     Tests functionality of RISC-V processor up to PD4
 
-    USAGE:  python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] [-t/--terminate/--ecall] <PATH to .trace file>
+    USAGE:  python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] [-t/--terminate/--ecall] <PATH to .trace file> <PATH to .x file>
 
-    EX:     python3 parse.py rv32ui-p-sltiu.trace
+    EX:     python3 parse.py rv32ui-p-sltiu.trace /rv32-benchmarks/individual-instructions/rv32ui-p-sltiu.x
 
     UPDATES:
     @justincmendes:
@@ -29,7 +29,7 @@
         Default: 1048576
 
     FUTURE:
-    v1.2: 
+    v1.x: 
         - Add support for flags (-pd1 -pd2 -pd3 -pd4 -pd5)
             To separate the parsers verification for each of the different projects
             (upto and including the project)
@@ -39,7 +39,7 @@
 #// TODO: ADD ERROR MESSAGES! to all _check() functions
 #// TODO: Update memory_check to verify with Internal implementation for the address and other stuff...
 #// TODO: verify PC is the same at each step, sequentially! - implemented generally for single cycle
-# TODO: Reorganize code function orders
+#// TODO: Reorganize code function orders
 #// TODO: Support flag args
 
 """
@@ -75,6 +75,17 @@ def trace_file(path):
 
     return path
 
+def hex_file(path):
+    if not os.path.isfile(path):
+        raise argparse.ArgumentTypeError(f'{path} is not a file or it does not exist')
+    
+    if (len(path) <= 2) or (path[-2:] != ".x"):
+        raise argparse.ArgumentTypeError(f'{path} is not a valid hex file (i.e.: *.x)')
+
+    return path
+
+
+
 
 # *** Classes
 class Memory:
@@ -95,23 +106,40 @@ class Memory:
             print(f'{i}: {self.arr[i]}')
 
 class DMemory(Memory):
-    def __init__(self, size, data_width):
+    def __init__(self, size, data_width, mem_path = None):
         super().__init__(size, data_width)
+
+        # Initialize dmemory with contents in mem_path
+        if(mem_path):
+            # Get the .x file and load its content in binary to dmemory
+            with open(mem_path) as f:
+                i = 0
+                for line in f.readlines():
+                    line_bin = dec_to_bin(hex_to_dec(line), 32)
+                    if(not self.set_word(line_bin, i)): break
+                    i += 4
+
 
     def set_byte(self, str, index):
         self.arr[index] = str[-8:]
         return True
 
     def set_half(self, str, index):
-        self.arr[index] = str[-8:]
+        if(index < self.size): self.arr[index] = str[-8:]
+        else: return False
         if(index + 1 < self.size): self.arr[index + 1] = str[-16:-8]
+        else: return False
         return True
     
     def set_word(self, str, index):
-        self.arr[index] = str[-8:]
+        if(index < self.size): self.arr[index] = str[-8:]
+        else: return False
         if(index + 1 < self.size): self.arr[index + 1] = str[-16:-8]
+        else: return False
         if(index + 2 < self.size): self.arr[index + 2] = str[-24:-16]
+        else: return False
         if(index + 3 < self.size): self.arr[index + 3] = str[-32:-24]
+        else: return False
         # print(f'str: {str}\n{index}: {self.arr[index]}\n{index + 1}: {self.arr[index + 1]}\n{index + 2}: {self.arr[index + 2]}\n{index + 3}: {self.arr[index + 3]}')
         return True
 
@@ -1277,7 +1305,8 @@ def write_check(line, instruction_bin, write_res, reg_file):
 
 
 def main():
-    parser.add_argument("path", type=trace_file, help="Path to the a .trace file (ex. ../sim/verilator/test_pd/rv32ui-p-sltiu.trace)")
+    parser.add_argument("trace", type=trace_file, help="Path to the a .trace file (ex. ../sim/verilator/test_pd/rv32ui-p-sltiu.trace)")
+    parser.add_argument("hex", type=hex_file, help="Path to the a .x file (ex. /rv32-benchmarks/individual-instructions/rv32ui-p-sltiu.x). Used to initialize dmemory")
     parser.add_argument("-i", "--instructions", dest="instructions", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions enumerated)")
     parser.add_argument("-in", "--instructions-no-num", dest="instructions_no_num", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions NOT enumerated)")
     parser.add_argument("-r", "--regfile", dest="regfile", action="store_true", help="Print the state of the Register File at each [R] (Default: False)")
@@ -1286,7 +1315,8 @@ def main():
     parser.add_argument("-m", "--mem", dest="mem", type=int, default=1048576, metavar="MEM_DEPTH", help="Number of bytes (8-bit values) in data memory (dmemory). (Default: 1048576)")
     args = parser.parse_args()
 
-    PATH = args.path
+    TRACE = args.trace
+    HEX_FILE = args.hex
     SHOW_INSTR = args.instructions
     SHOW_INSTR_NO_NUM = args.instructions_no_num
     SHOW_REG = args.regfile
@@ -1298,11 +1328,11 @@ def main():
         print(f'Please enter a MEM_DEPTH greater than 0. Got: {MEM_DEPTH}\n')
         return
 
-    f = open(PATH, 'r')
+    f = open(TRACE, 'r')
     line = f.readline()
 
     reg_file = Reg_File(32, 32)
-    dmemory = DMemory(MEM_DEPTH, 8) # Byte-addressable memory
+    dmemory = DMemory(MEM_DEPTH, 8, HEX_FILE) # Byte-addressable memory
     instruction_bin = ""
     instruction = ""
     pc = ""

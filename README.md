@@ -39,10 +39,12 @@ Runs a full end-to-end test of your processor.
 
 **Default Behaviour:** Executes and Verifies all tests.
 
-**Assumptions Made**: 
+**Assumptions Made:** 
 1. Your `/rv32-benchmarks` directory has subfolders: `/individual-instructions` and `/simple-programs`.
 
-2. Your results - `*.trace` files, are in directory `../sim/verilator/test_pd`
+2. `*.x` files in `/individual-instructions` begin with: `rv32ui-p-` 
+
+3. Your results - `*.trace` files, are in directory `../sim/verilator/test_pd`
 
 ## Format
 
@@ -107,15 +109,26 @@ Flags forwarded to [parse.py](##format-1):
 
 Compares the results of your processor's `*.trace` output file under a `*.x` testbench to a mock Python RV32UI processor to verify correctness of your processor under the given `*.x` test.
 
+**Assumptions Made:**
+1. Your dmemory is initialized with the same data as imemory.
+
+2. Your reg_file (i.e. each register x0-x31) is initialized with all 0s.
+
 ## Format
 
-`python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] <PATH: to .trace file> `
+`python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] <TRACE: path to .trace file> <HEX: path to corresponding .x file> `
 
 ### Arguments
 
-`PATH`: **Required.** 
+`TRACE`: **Required.** 
 
 Path to .trace file from executing a `*.x` testbench: `make run VERILATOR=1 TEST=test_pd MEM_PATH=*.x`.
+
+`HEX`: **Required.** 
+
+Path to .x file used to generate the `*.trace` file: `make run VERILATOR=1 TEST=test_pd MEM_PATH={HEX}`.
+
+The contents of this file will be initially **loaded into dmemory**.
 
 ### Flags
 
@@ -146,15 +159,15 @@ Number of bytes (8-bit values) in data memory (memory).
 
 ## Examples
 
-`python3 parse.py ../sim/verilator/test_pd/rv32ui-p-sltiu.trace -in -s`
+`python3 parse.py ../sim/verilator/test_pd/rv32ui-p-sltiu.trace ../../../../../rv32-benchmarks/individual-instructions/rv32ui-p-sltiu.x -in -s`
 
-`python3 parse.py -i -r -t ../data/rv32ui-p-add.trace`
+`python3 parse.py -i -r -t ../data/rv32ui-p-add.trace ../../../../../rv32-benchmarks/individual-instructions/rv32ui-p-add.x`
 
-`python3 parse.py --skip -m 1024000 ../tests/out/BubbleSort.trace -i`
+`python3 parse.py --skip -m 1024000 ../tests/out/BubbleSort.trace -i /rv32-benchmarks/simple-programs/BubbleSort.x`
 
 
 # Future Versions
 
-## v1.2
+## v1.x
 
 1. Add support for flags `-pd1` `-pd2` `-pd3` `-pd4` `-pd5` to allow user to isolate which project they would like to test up to.

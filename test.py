@@ -1,8 +1,8 @@
 """
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Sunday October 23, 2022
-    Version: v1.1
+    Last Modified: Sunday October 30, 2022
+    Version: v1.2
     
     Runs all of the *.x tests in the benchmarks
     Place this script in the './verif/scripts' 
@@ -98,13 +98,25 @@ def main():
     
     if RUN_VERIF:
         trace_files = glob.glob(f'../sim/verilator/test_pd/*.trace')
+        # remove the .trace at the end and only get the name of the file, to search for the test files
+        file_names = []
+        for file in trace_files:
+            filename = os.path.basename(file)
+            file_names.append(os.path.splitext(filename)[0])
+
+        test_files = []
+        for file in file_names:
+            if(file.startswith("rv32ui-p-")):
+                test_files.append(f'{PATH}/individual-instructions/{file}.x')
+            else:
+                test_files.append(f'{PATH}/simple-programs/{file}.x')
 
         if(RUN_EXEC): print("\n")
         print("==================\nVERIFYING ALL TRACE FILES\n==================")
-        for file in trace_files:
+        for i, file in enumerate(trace_files):
             print(f'\n{file}')
 
-            cmd = ["python3", "parse.py", f'{file}']
+            cmd = ["python3", "parse.py", f'{file}', f'{test_files[i]}']
             
             if SHOW_INSTR: cmd.append("-i")
             if SHOW_INSTR_NO_NUM: cmd.append("-in")
