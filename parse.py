@@ -2,7 +2,7 @@
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
     Last Modified: Monday October 31, 2022
-    Version: v1.2.1
+    Version: v1.2.2
 
     Tests functionality of RISC-V processor up to PD4
 
@@ -252,6 +252,12 @@ def is_register_type(instruction):
 
 def print_instruction(instruction_bin, instr_num = None):
     instruction = decoder(instruction_bin)
+
+    if(instruction == "N/A"): return
+    elif(instruction == "ECALL"):
+        print("ECALL")
+        return
+
     rd = bin_to_dec(get_rd(instruction_bin))
     rs1 = bin_to_dec(get_rs1(instruction_bin))
     rs2 = bin_to_dec(get_rs2(instruction_bin))
@@ -259,7 +265,7 @@ def print_instruction(instruction_bin, instr_num = None):
     shamt = dec_to_hex(bin_to_dec(get_shamt(instruction_bin)), 2)
 
     index_out = f'{instr_num}. ' if instr_num else ""
-
+    
     if(is_upper_type(instruction) or instruction == "JAL"):
         print(f'{index_out}{instruction} x{rd}, 0x{imm}')
 
@@ -280,9 +286,6 @@ def print_instruction(instruction_bin, instr_num = None):
 
     elif(is_register_type(instruction)):
         print(f'{index_out}{instruction} x{rd}, x{rs1}, x{rs2}')
-
-    elif(instruction == "ECALL"):
-        print("ECALL")
 
 
 # *** Getters: Instruction Binary Extraction Functions
@@ -1296,11 +1299,11 @@ def write_check(line, instruction_bin, write_res, reg_file):
 
         elif(write_rd != rd_addr):
             res = False
-            err = f'<{instruction}>: {dec_to_hex(bin_to_dec(instruction_bin), 8)} - DECODER - incorrect destination register address, rd; got {write_rd}, expecting {rd_addr}'
+            err = f'<{instruction}>: {dec_to_hex(bin_to_dec(instruction_bin), 8)} - WRITE - incorrect destination register address, rd; got {write_rd}, expecting {rd_addr}'
 
         elif(data_rd != exp_write):
             res = False
-            err = f'<{instruction}>: {dec_to_hex(bin_to_dec(instruction_bin), 8)} - DECODER - incorrect write back data; got {data_rd}, expecting {exp_write}'
+            err = f'<{instruction}>: {dec_to_hex(bin_to_dec(instruction_bin), 8)} - WRITE - incorrect write back data; got {data_rd}, expecting {exp_write}'
     
     return (res, err)
 
