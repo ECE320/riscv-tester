@@ -1,8 +1,8 @@
 """
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Sunday October 30, 2022
-    Version: v1.2
+    Last Modified: Monday October 31, 2022
+    Version: v1.2.1
 
     Tests functionality of RISC-V processor up to PD4
 
@@ -65,6 +65,8 @@ import os
 
 # *** Args Parser
 parser = argparse.ArgumentParser()
+
+SP_BASE = "01000000" # in hex
 
 def trace_file(path):
     if not os.path.isfile(path):
@@ -1322,7 +1324,7 @@ def main():
     SHOW_REG = args.regfile
     END_ON_ECALL = args.ecall
     STOP_ON_ERR = args.skip
-    MEM_DEPTH = args.mem # # of bytes (8-bit values)
+    MEM_DEPTH = args.mem # # of bytes (8-bit values) in decimal
 
     if MEM_DEPTH <= 0:
         print(f'Please enter a MEM_DEPTH greater than 0. Got: {MEM_DEPTH}\n')
@@ -1332,6 +1334,9 @@ def main():
     line = f.readline()
 
     reg_file = Reg_File(32, 32)
+    # Set stack pointer (sp = x2) to 0x01000000 + MEM_DEPTH
+    reg_file.set(dec_to_bin(hex_to_dec(SP_BASE) + MEM_DEPTH, 32), 2) 
+
     dmemory = DMemory(MEM_DEPTH, 8, HEX_FILE) # Byte-addressable memory
     instruction_bin = ""
     instruction = ""
