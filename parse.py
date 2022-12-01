@@ -1744,7 +1744,7 @@ def main():
         
         #// TODO: Update PC CHECK for each type of instruction (at the beginning)
         # i.e. if fetch: pc_check() = if(fetch_pc == pc) 
-        if(stall): print("STALLED")
+        # if(stall): print("STALLED")
 
         if(stage == 'F'):
             '''FETCH'''
