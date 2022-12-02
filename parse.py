@@ -1,13 +1,13 @@
 '''
     Authors: Justin Mendes and Shazil Razzaq
     Date: Monday October 17, 2022
-    Last Modified: Friday Nov 25, 2022
-    Version: v1.3.1
+    Last Modified: Friday Dec 2, 2022
+    Version: v1.4
 
     Tests functionality of RISC-V processor up to PD4
 
     USAGE:  python3 parse.py [-h/--help] [-s/--skip] [-i/--instructions] [-in/--instructions-no-num] 
-            [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] [-t/--terminate/--ecall] 
+            [-r/--regfile] [-m <MEM_DEPTH> / --mem <MEM_DEPTH>] 
             <PATH to .trace file> <PATH to .x file>
 
     EX:     python3 parse.py rv32ui-p-sltiu.trace /rv32-benchmarks/individual-instructions/rv32ui-p-sltiu.x
@@ -321,7 +321,7 @@ class RegFile(Memory):
 def is_reg_writeback_type(instruction_name):
     return (
         not is_store_type(instruction_name) and not is_branch_type(instruction_name) 
-        and not is_upper_type(instruction_name) and instruction_name != "ECALL"
+        and instruction_name != "ECALL"
         and instruction_name != "NOP"
     )
 
@@ -401,19 +401,34 @@ def is_register_type(instruction_name):
         or instruction_name == "AND"
     )
 
+def uses_rs1(instruction_name):
+    return (
+        not is_upper_type(instruction_name) 
+        and instruction_name != "JAL"
+        and instruction_name != "ECALL"
+        and instruction_name != "NOP"
+    )
+
+def uses_rs2(instruction_name):
+    return (
+        is_branch_type(instruction_name) 
+        or is_store_type(instruction_name) 
+        or is_register_type(instruction_name)
+    )
+
 def get_print_instruction(instruction, instr_num = None):
+    index_out = f'{instr_num}. ' if instr_num else ""
+    print_out = None
+
     if(instruction.name == "N/A"): return None
     elif(instruction.name == "ECALL"):
-        return "ECALL"
+        return f'{index_out}ECALL'
 
     rd = bin_to_dec(instruction.rd)
     rs1 = bin_to_dec(instruction.rs1)
     rs2 = bin_to_dec(instruction.rs2)
     imm = dec_to_hex(bin_to_dec(instruction.imm), 8)
     shamt = dec_to_hex(bin_to_dec(instruction.rd), 2)
-
-    index_out = f'{instr_num}. ' if instr_num else ""
-    print_out = None
     
     if(is_upper_type(instruction.name) or instruction.name == "JAL"):
         print_out = f'{index_out}{instruction.name} x{rd}, 0x{imm}'
@@ -624,12 +639,12 @@ def fetch(pipeline, hex_file_path, pc, stall, first=False):
     # print("FETCH STALL CHECK:")
     # print (stall)
     if(not stall):
-        if(is_jump_type(x_instruction.name)):
-            # print("FETCH JUMP (execute ALU)")
-            pc = bin_to_dec(x_instruction.alu_result)
-        elif(is_branch_type(m_instruction.name) and m_instruction.pc_sel == "1"):
+        if(is_branch_type(m_instruction.name) and m_instruction.pc_sel == "1"):
             # print("FETCH BRANCH (memory ALU)")
             pc = bin_to_dec(m_instruction.alu_result)
+        elif(is_jump_type(x_instruction.name)):
+            # print("FETCH JUMP (execute ALU)")
+            pc = bin_to_dec(x_instruction.alu_result)
         elif(not first):
             # print("FETCH PC+4")
             pc += 4
@@ -638,12 +653,14 @@ def fetch(pipeline, hex_file_path, pc, stall, first=False):
     if(not hex_file):
         return False
     
+    # print(int((pc - hex_to_dec(SP_BASE))/4))
+    
     instruction_hex = "0" * 8
     for file in hex_file:
         with open(file, 'r') as f:
             instruction_hex = f.readlines()[int((pc - hex_to_dec(SP_BASE))/4)]
-    # print(int((pc - hex_to_dec(SP_BASE))/4))
     # print(instruction_hex)
+    # print(int((pc - hex_to_dec(SP_BASE))/4))
 
     f_instruction.pc = dec_to_bin(pc, 32)
     f_instruction.binary = dec_to_bin(hex_to_dec(instruction_hex), 32)
@@ -670,7 +687,7 @@ def fetch_check(pipeline, line, stall):
     elif(is_branch_type(m_instruction.name) and m_instruction.pc_sel == "1"):
         operation = "BRANCH ALU"
 
-    stalled = "(STALLED) " if stall else ""
+    stalled = "(STALLED EXPECTED) " if stall else ""
 
     if(pc != f_instruction.pc): 
         res = False
@@ -1018,23 +1035,24 @@ def execute(pipeline):
     br_taken = "0"
 
     if(not (is_upper_type(x_instruction.name) or x_instruction.name == "JAL")):
-        if(x_instruction.rs1 == m_instruction.rd):
+        if(x_instruction.rs1 == m_instruction.rd and is_reg_writeback_type(m_instruction.name) and m_instruction.rd != "0" * 5):
             '''MX Bypass'''
-            # print(f'MX BYPASS: rs1: [{get_print_instruction(m_instruction)} -> {get_print_instruction(x_instruction)}] (ID: {m_instruction.id}) -> (ID: {x_instruction.id})')
+            # print(f'MX BYPASS: rs1: [{get_print_instruction(m_instruction)} -> {get_print_instruction(x_instruction)}] (PC: {dec_to_hex(bin_to_dec(m_instruction.pc), 8)}) -> (PC: {dec_to_hex(bin_to_dec(x_instruction.pc), 8)}) (ID: {m_instruction.id}) -> (ID: {x_instruction.id}) (Bypass Value: {dec_to_hex(bin_to_dec(m_instruction.alu_result), 8)})')
             rs1 = m_instruction.alu_result
-        elif(x_instruction.rs1 == w_instruction.rd):
+        elif(x_instruction.rs1 == w_instruction.rd and is_reg_writeback_type(w_instruction.name) and w_instruction.rd != "0" * 5):
             '''WX Bypass'''
-            # print(f'WX BYPASS: rs1: [{get_print_instruction(w_instruction)} -> {get_print_instruction(x_instruction)}] (ID: {w_instruction.id}) -> (ID: {x_instruction.id})')
+            # print(f'WX BYPASS: rs1: [{get_print_instruction(w_instruction)} -> {get_print_instruction(x_instruction)}] (PC: {dec_to_hex(bin_to_dec(w_instruction.pc), 8)}) -> (PC: {dec_to_hex(bin_to_dec(x_instruction.pc), 8)}) (ID: {w_instruction.id}) -> (ID: {x_instruction.id}) (Bypass Value: {dec_to_hex(bin_to_dec(w_instruction.write_data), 8)})')
             rs1 = w_instruction.write_data
+            
 
     if(is_register_type(x_instruction.name) or is_branch_type(x_instruction.name)):
-        if(x_instruction.rs2 == m_instruction.rd):
+        if(x_instruction.rs2 == m_instruction.rd and is_reg_writeback_type(m_instruction.name) and m_instruction.rd != "0" * 5):
             '''MX Bypass'''
-            # print(f'MX BYPASS: rs2: [{get_print_instruction(m_instruction)} -> {get_print_instruction(x_instruction)}] (ID: {m_instruction.id}) -> (ID: {x_instruction.id})')
+            # print(f'MX BYPASS: rs2: [{get_print_instruction(m_instruction)} -> {get_print_instruction(x_instruction)}] (PC: {dec_to_hex(bin_to_dec(m_instruction.binary), 8)}) -> (PC: {dec_to_hex(bin_to_dec(x_instruction.binary), 8)}) (ID: {m_instruction.id}) -> (ID: {x_instruction.id}) (Bypass Value: {dec_to_hex(bin_to_dec(m_instruction.alu_result), 8)})')
             rs2 = m_instruction.alu_result
-        elif(x_instruction.rs2 == w_instruction.rd):
+        elif(x_instruction.rs2 == w_instruction.rd and is_reg_writeback_type(w_instruction.name) and w_instruction.rd != "0" * 5):
             '''WX Bypass'''
-            # print(f'WX BYPASS: rs2: [{get_print_instruction(w_instruction)} -> {get_print_instruction(x_instruction)}] (ID: {w_instruction.id}) -> (ID: {x_instruction.id})')
+            # print(f'WX BYPASS: rs2: [{get_print_instruction(w_instruction)} -> {get_print_instruction(x_instruction)}] (PC: {dec_to_hex(bin_to_dec(w_instruction.binary), 8)}) -> (PC: {dec_to_hex(bin_to_dec(x_instruction.binary), 8)}) (ID: {w_instruction.id}) -> (ID: {x_instruction.id}) (Bypass Value: {dec_to_hex(bin_to_dec(w_instruction.write_data), 8)})')
             rs2 = w_instruction.write_data
     
     # print(f'rs1: {rs1}')
@@ -1354,7 +1372,7 @@ def memory(pipeline, dmemory):
     
     out = None
 
-    mem_index = bin_to_dec(m_instruction.alu_result[-12:])
+    mem_index = bin_to_dec(m_instruction.alu_result[-32:]) - hex_to_dec(SP_BASE)
     write_data = m_instruction.rs2_data
     memory_access_size = m_instruction.funct3[-2:]
     mem_rw = "0"
@@ -1365,12 +1383,12 @@ def memory(pipeline, dmemory):
 
     if(
         m_instruction.rs2 == w_instruction.rd
+        and w_instruction.rd != "0" * 5
         and is_store_type(m_instruction.name) 
         and is_reg_writeback_type(w_instruction.name)
     ):
         '''WM Bypass'''
-        # print(f'WM BYPASS: rs2: [{get_print_instruction(w_instruction)} -> {get_print_instruction(m_instruction)}] (ID: {w_instruction.id}) -> (ID: {m_instruction.id})')
-        # pipeline.print()
+        # print(f'WM BYPASS: rs2: [{get_print_instruction(w_instruction)} -> {get_print_instruction(m_instruction)}] (PC: {dec_to_hex(bin_to_dec(w_instruction.pc), 8)}) -> (PC: {dec_to_hex(bin_to_dec(m_instruction.pc), 8)}) (ID: {w_instruction.id}) -> (ID: {m_instruction.id})')
         write_data = w_instruction.write_data
 
     if(m_instruction.name == "SB"):
@@ -1398,7 +1416,9 @@ def memory(pipeline, dmemory):
 
     if(is_store_type(m_instruction.name)):
         mem_rw = "1"
-
+    
+    if(is_load_type(m_instruction.name)):
+        reg_w_en = "1"
 
     '''PC+4 and ALU are accessible in Memory stage'''
     calc = None
@@ -1436,12 +1456,15 @@ def memory(pipeline, dmemory):
     # else:
        calc = m_instruction.alu_result
        reg_w_en = "1"
+    
+    elif(out):
+        calc = out
+
 
     if(calc):
         m_instruction.write_data = calc
 
     # print(f'calc: {calc}')
-    # print(m_instruction.print())
 
     m_instruction.memory_access_size = memory_access_size
     m_instruction.memory_data = out
@@ -1464,7 +1487,7 @@ def memory_check(instruction, line, dmemory):
 
     # Internal: In processor
     exp_access_size = dec_to_hex(bin_to_dec(instruction.memory_access_size), 1)
-    write_data = instruction.rs2_data
+    write_data = instruction.write_data
 
     # PC CHECK!!!
     if(pc != instruction.pc):
@@ -1530,10 +1553,10 @@ def memory_check(instruction, line, dmemory):
             res = False
             err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - should NOT be writing to dmemory if not a Store instruction (SB, SH, SW only)'
 
-    if(res):
+    if(res and is_mem_type(instruction.name)):
         '''memory_data'''
-        addr_dec = instruction.alu_result[-12:]
-        dmem_data = dmemory.get_word(bin_to_dec(addr_dec))
+        addr_dec = bin_to_dec(instruction.alu_result[-32:]) - hex_to_dec(SP_BASE)
+        dmem_data = dmemory.get_word(addr_dec)
         # Check if state of dmemory is correct on reads
         # Only If it is a memory instruction. DC otherwise
         if(is_load_type(instruction.name)):
@@ -1545,7 +1568,7 @@ def memory_check(instruction, line, dmemory):
                 and data[-8:] != dmem_data[-8:]
             ):
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory byte at address {addr_dec} is {dmem_data[-8:]}, got {data[-8:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory byte at address {dec_to_hex(addr_dec, 8)}: got {data[-8:]}, expected: {dmem_data[-8:]}'
 
             elif(
                 (
@@ -1555,7 +1578,7 @@ def memory_check(instruction, line, dmemory):
                 and data[-16:] != dmem_data[-16:]
             ):
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory half-word at address {addr_dec} is {dmem_data[-16:]}, got {data[-16:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory half-word at address {dec_to_hex(addr_dec, 8)}: got {data[-16:]}, expected: {dmem_data[-16:]}'
 
 
             elif(
@@ -1565,7 +1588,7 @@ def memory_check(instruction, line, dmemory):
                 and data[-32:] != dmem_data[-32:]
             ): 
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory word at address {addr_dec} is {dmem_data[-32:]}, got {data[-32:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory word at address {dec_to_hex(addr_dec, 8)}: got {data[-32:]}, expected: {dmem_data[-32:]}'
         
         # Verify that data was stored correctly
         elif(is_store_type(instruction.name)):
@@ -1574,14 +1597,14 @@ def memory_check(instruction, line, dmemory):
                 and dmem_data[-8:] != write_data[-8:]
             ):
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory byte at address {addr_dec} is {dmem_data[-8:]}, expecting {write_data[-8:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory byte at address {dec_to_hex(addr_dec, 8)}: got: {dmem_data[-8:]}, expecting: {write_data[-8:]}'
 
             elif(
                 instruction.name == "SH"  
                 and dmem_data[-16:] != write_data[-16:]
             ):
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory half-word at address {addr_dec} is {dmem_data[-16:]}, expecting {write_data[-16:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory half-word at address {dec_to_hex(addr_dec, 8)}: got: {dmem_data[-16:]}, expecting: {write_data[-16:]}'
 
 
             elif(
@@ -1589,34 +1612,15 @@ def memory_check(instruction, line, dmemory):
                 and dmem_data[-32:] != write_data[-32:]
             ): 
                 res = False
-                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory word at address {addr_dec} is {dmem_data[-32:]}, expecting {write_data[-32:]}'
+                err = f'<{instruction.name}>: {dec_to_hex(bin_to_dec(instruction.binary), 8)} - dmemory word at address {dec_to_hex(addr_dec, 8)}: got: {dmem_data[-32:]}, expecting: {write_data[-32:]}'
 
     return (res, err)
 
 
 def write(instruction, reg_file):
     res = False
-    out = None
 
-    if (
-        instruction.name == "LB"
-        or instruction.name == "LH"
-        or instruction.name == "LW"
-        or instruction.name == "LBU"
-        or instruction.name == "LHU"
-    ): 
-        out = instruction.memory_data
-        instruction.reg_w_en = "1"
-
-    if(out): instruction.write_data = out
-    else: out = instruction.write_data
-
-    # print("WRITE CHECK")
-    # instruction.print()
-    # print(instruction.rd)
-    # print(bin_to_dec(instruction.rd))
-    # print(out)
-    if(instruction.reg_w_en == "1"): res = reg_file.set(out, bin_to_dec(instruction.rd))
+    if(instruction.reg_w_en == "1"): res = reg_file.set(instruction.write_data, bin_to_dec(instruction.rd))
     else: res = True
     
     return res
@@ -1664,6 +1668,7 @@ def write_check(instruction, line):
             or instruction.name == "ECALL"
             or instruction.name == "NOP"
         )
+        and rd_addr != 0
     ):
         if(not write_enable):
             res = False
@@ -1687,7 +1692,7 @@ def main():
     parser.add_argument("-i", "--instructions", dest="instructions", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions enumerated)")
     parser.add_argument("-in", "--instructions-no-num", dest="instructions_no_num", action="store_true", help="Print all instructions in RISC-V format (Default: False, instructions NOT enumerated)")
     parser.add_argument("-r", "--regfile", dest="regfile", action="store_true", help="Print the state of the Register File at each [R] (Default: False)")
-    parser.add_argument("-t", "--terminate", "--ecall", dest="ecall", action="store_true", help="End (terminate) the parse.py check at the first ECALL instruction (Default: False)")
+    # parser.add_argument("-t", "--terminate", "--ecall", dest="ecall", action="store_true", help="End (terminate) the parse.py check at the first ECALL instruction (Default: False)")
     parser.add_argument("-s", "--skip", dest="skip", action="store_false", help="CONTINUE execution on errors (Default: True)")
     parser.add_argument("-m", "--mem", dest="mem", type=int, default=1048576, metavar="MEM_DEPTH", help="Number of bytes (8-bit values) in data memory (dmemory). (Default: 1048576)")
     args = parser.parse_args()
@@ -1697,7 +1702,8 @@ def main():
     SHOW_INSTR = args.instructions
     SHOW_INSTR_NO_NUM = args.instructions_no_num
     SHOW_REG = args.regfile
-    END_ON_ECALL = args.ecall
+    # END_ON_ECALL = args.ecall
+    END_ON_ECALL = True
     STOP_ON_ERR = args.skip
     MEM_DEPTH = args.mem # # of bytes (8-bit values) in decimal
 
@@ -1707,9 +1713,9 @@ def main():
     
     pipeline = Pipeline()
     reg_file = RegFile(32, 32)
-    # Set stack pointer (sp = x2) to 0x01000000 + MEM_DEPTH    
     dmemory = DMemory(MEM_DEPTH, 8, HEX_FILE) # Byte-addressable memory
 
+    # Set stack pointer (sp = x2) to 0x01000000 + MEM_DEPTH    
     reg_file.set(dec_to_bin(hex_to_dec(SP_BASE) + MEM_DEPTH, 32), 2) 
     
     iterator = 0
@@ -1730,9 +1736,13 @@ def main():
     # pipeline.add(blank_write)
     blank_instruction = Instruction(instr_num)
     pipeline.add(blank_instruction)
+    instr_num += 1
+
     stall = False
+    prev_stall_id = None
     pc_index = hex_to_dec(SP_BASE)
 
+    # TODO: Add line of Trace file where the error occurred!!!
 
     while (line):
         iterator += 1
@@ -1755,10 +1765,10 @@ def main():
             pc_index = bin_to_dec(f_instruction.pc)
 
             (success, err) = fetch_check(pipeline, line, stall)
-            stall = False
+            # stall = False
 
             if (not success):
-                print(f'<FETCH> Instruction: PC = {dec_to_hex(bin_to_dec(f_instruction.pc), 8)}, did not FETCH correctly.')
+                print(f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<FETCH> PC: {dec_to_hex(bin_to_dec(f_instruction.pc), 8)}, did not FETCH correctly.')
             if(err):
                 print(err)
             if(STOP_ON_ERR and not success):
@@ -1782,63 +1792,239 @@ def main():
             # print("===== AFTER decoding =====")
             # pipeline.print()
 
-            if(d_instruction.name != "NOP" and d_instruction.name != "N/A"):
-                instr_num += 1
+            # print(stall)
 
-            if(instr_num > 0 and (SHOW_INSTR or SHOW_INSTR_NO_NUM)): 
-                print_instruction(d_instruction, instr_num if SHOW_INSTR else None)
-            
+            # If stall, print stall
+            # Else print normally?
+
+            # print(is_reg_writeback_type(w_instruction.name)
+            #     and
+            #     (
+            #         # RS1
+            #         w_instruction.rd == d_instruction.rs1
+            #         and d_instruction.rs1 != "0" * 5
+            #         and not (
+            #             (
+            #                 m_instruction.rd == d_instruction.rs1 
+            #                 and is_reg_writeback_type(m_instruction.name)
+            #             )
+            #             or (
+            #                 x_instruction.rd == d_instruction.rs1
+            #                 and is_reg_writeback_type(x_instruction.name)
+            #             )
+            #         )
+            #     )
+            # )
+            # print(is_reg_writeback_type(w_instruction.name))
+            # print(w_instruction.rd == d_instruction.rs1
+            #     and d_instruction.rs1 != "0" * 5
+            #     and not (
+            #         (
+            #             m_instruction.rd == d_instruction.rs1 
+            #             and is_reg_writeback_type(m_instruction.name)
+            #         )
+            #         or (
+            #             x_instruction.rd == d_instruction.rs1
+            #             and is_reg_writeback_type(x_instruction.name)
+            #         )
+            #     )
+            # )
+
+            # print(is_reg_writeback_type(w_instruction.name)
+            #     and
+            #     (
+            #         # RS2
+            #         w_instruction.rd == d_instruction.rs2
+            #         and d_instruction.rs2 != "0" * 5
+            #         and not (
+            #             (
+            #                 m_instruction.rd == d_instruction.rs2
+            #                 and is_reg_writeback_type(m_instruction.name)
+            #             )
+            #             or (
+            #                 x_instruction.rd == d_instruction.rs2
+            #                 and is_reg_writeback_type(x_instruction.name)
+            #             )
+            #         )
+            #     )
+            # )
+            # print(is_load_type(x_instruction)
+            #     and (
+            #         d_instruction.rs1 == x_instruction.rd
+            #         or (d_instruction.rs2 == x_instruction.rd and not is_store_type(d_instruction.name))
+            #     )
+            # )
+            # print(is_load_type(x_instruction.name))
+            # print(d_instruction.rs1 == x_instruction.rd
+            #     or (d_instruction.rs2 == x_instruction.rd and not is_store_type(d_instruction.name))
+            # )
 
             # pipeline.print()
-
-            success = True
-            err = None
-            if(d_instruction.name != "NOP"):
-                (success, err) = decode_check(d_instruction, line)
-
-            if(not success and d_instruction.name != "N/A"):
-                print(
-                    f'<DECODE> Instruction: {dec_to_hex(bin_to_dec(d_instruction.binary), 8)} - {get_print_instruction(d_instruction)}, did not DECODE correctly.'
-                )
-            if(err):
-                print(err)
-            if(STOP_ON_ERR and not success and d_instruction.name != "N/A"):
-                print(f'\n{"Stopping execution..." if STOP_ON_ERR else ""}\n')
-                break
-            if(END_ON_ECALL and d_instruction.name == "ECALL"):
-                    print(f'\nECALL: $finish (end of program)\n')
-                    break
 
             #// TODO: stalling boolean logic
             stall = (
                 # Decode-Writeback RAW
                 (
+                    is_reg_writeback_type(w_instruction.name)
+                    and w_instruction.rd != "0" * 5
+                    and
                     (
-                        (w_instruction.rd == d_instruction.rs1 and d_instruction.rs1 != "0" * 5)
-                        or (w_instruction.rd == d_instruction.rs2 and d_instruction.rs2 != "0" * 5)
-                    )
-                    and is_reg_writeback_type(w_instruction.name)
-                    and not (
                         (
-                            (m_instruction.rd == d_instruction.rs1 or m_instruction.rd == d_instruction.rs2) 
-                            and is_reg_writeback_type(m_instruction.name)
+                            # RS1
+                            w_instruction.rd == d_instruction.rs1
+                            and d_instruction.rs1 != "0" * 5
+                            and uses_rs1(d_instruction.name)
+                            and not (
+                                (
+                                    m_instruction.rd == d_instruction.rs1 
+                                    and is_reg_writeback_type(m_instruction.name)
+                                )
+                                or (
+                                    x_instruction.rd == d_instruction.rs1
+                                    and is_reg_writeback_type(x_instruction.name)
+                                )
+                            )
                         )
-                        or (
-                            (x_instruction.rd == d_instruction.rs1 or x_instruction.rd == d_instruction.rs2) 
-                            and is_reg_writeback_type(x_instruction.name)
+                        or
+                        (
+                            # RS2
+                            w_instruction.rd == d_instruction.rs2
+                            and d_instruction.rs2 != "0" * 5
+                            and uses_rs2(d_instruction.name)
+                            and not (
+                                (
+                                    m_instruction.rd == d_instruction.rs2
+                                    and is_reg_writeback_type(m_instruction.name)
+                                )
+                                or (
+                                    x_instruction.rd == d_instruction.rs2
+                                    and is_reg_writeback_type(x_instruction.name)
+                                )
+                            )
                         )
                     )
                 )
                 or 
                 # Load-To-Use Dependency (i.e. Decode: Depends on LOAD && Execute: LOAD)
                 (
-                    is_load_type(x_instruction)
+                    is_load_type(x_instruction.name)
+                    and x_instruction.rd != "0" * 5
+                    and not is_upper_type(d_instruction.name) 
+                    and d_instruction.name != "JAL"
+                    and d_instruction.name != "ECALL"
+                    and d_instruction.name != "NOP"
                     and (
-                        d_instruction.rs1 == x_instruction.rd
-                        or (d_instruction.rs2 == x_instruction.rd and not is_store_type(d_instruction.name))
+                        d_instruction.rs1 == x_instruction.rd and uses_rs1(d_instruction.name)
+                        or (d_instruction.rs2 == x_instruction.rd and not is_store_type(d_instruction.name) and uses_rs2(d_instruction.name))
+                    )
+                )
+                or
+                # JALR: rs1 RAW: DX, DM, DW
+                (
+                    d_instruction.name == "JALR"
+                    and (
+                        (d_instruction.rs1 == x_instruction.rd and is_reg_writeback_type(x_instruction.name))
+                        or (d_instruction.rs1 == m_instruction.rd and is_reg_writeback_type(m_instruction.name))
+                        or (d_instruction.rs1 == w_instruction.rd and is_reg_writeback_type(w_instruction.name))
+                    )
+                )
+                or
+                # STORE data (SW, SH, SB): rs2 RAW: DM, DW
+                # (DX is covered by WM bypass)
+                (
+                    is_store_type(d_instruction.name)
+                    and (
+                        (d_instruction.rs2 == m_instruction.rd and is_reg_writeback_type(m_instruction.name))
+                        or (d_instruction.rs2 == w_instruction.rd and is_reg_writeback_type(w_instruction.name))
                     )
                 )
             )
+
+
+            # print(get_print_instruction(d_instruction))
+            # print(get_print_instruction(x_instruction))
+            # print(get_print_instruction(m_instruction))
+            # print(get_print_instruction(w_instruction))
+            # print(stall)
+            # print((
+            #         d_instruction.name == "JALR"
+            #         and (
+            #             (d_instruction.rs1 == x_instruction.rd and is_reg_writeback_type(x_instruction.name))
+            #             or (d_instruction.rs1 == m_instruction.rd and is_reg_writeback_type(m_instruction.name))
+            #             or (d_instruction.rs1 == w_instruction.rd and is_reg_writeback_type(w_instruction.name))
+            #         )
+            #     ))
+            # print(
+            #     (
+            #         is_store_type(d_instruction.name)
+            #         and (
+            #             (d_instruction.rs2 == m_instruction.rd and is_reg_writeback_type(m_instruction.name))
+            #             or (d_instruction.rs2 == w_instruction.rd and is_reg_writeback_type(w_instruction.name))
+            #         )
+            #     )
+            # )
+            # print((
+            #         is_load_type(x_instruction.name)
+            #         and x_instruction.rd != "0" * 5
+            #         and is_reg_writeback_type(x_instruction.name)
+            #         and (
+            #             d_instruction.rs1 == x_instruction.rd
+            #             or (d_instruction.rs2 == x_instruction.rd and not is_store_type(d_instruction.name))
+            #         )
+            #     ))
+            # print(
+            #     d_instruction.rs1 == x_instruction.rd
+            # )
+            # print(get_print_instruction(d_instruction))
+            # print(d_instruction.rs1)
+            # print(get_print_instruction(x_instruction))
+            # print(x_instruction.rd)
+            # print()
+
+
+            # print(w_instruction.rd == d_instruction.rs2)
+            # print(is_branch_type(d_instruction.name) 
+            #         or is_store_type(d_instruction.name) 
+            #         or is_register_type(d_instruction.name)
+            # )
+            # print(not (
+            #         (
+            #             m_instruction.rd == d_instruction.rs2
+            #             and is_reg_writeback_type(m_instruction.name)
+            #         )
+            #         or (
+            #             x_instruction.rd == d_instruction.rs2
+            #             and is_reg_writeback_type(x_instruction.name)
+            #         )
+            #     ))
+            # print( w_instruction.rd == d_instruction.rs2
+            #     and d_instruction.rs2 != "0" * 5
+            #     and (
+            #         is_branch_type(d_instruction.name) 
+            #         or is_store_type(d_instruction.name) 
+            #         or is_register_type(d_instruction.name)
+            #     )
+            #     and not (
+            #         (
+            #             m_instruction.rd == d_instruction.rs2
+            #             and is_reg_writeback_type(m_instruction.name)
+            #         )
+            #         or (
+            #             x_instruction.rd == d_instruction.rs2
+            #             and is_reg_writeback_type(x_instruction.name)
+            #         )
+            #     )
+            # )
+            # print(stall)
+            # print(get_print_instruction(d_instruction))
+            # print(get_print_instruction(w_instruction))
+
+
+
+            # print(stall)
+            # pipeline.print()
+
+
 
             # print("===== STALL CHECK =====")
             # pipeline.print()
@@ -1847,6 +2033,47 @@ def main():
             #             or (w_instruction.rd == d_instruction.rs2 and d_instruction.rs2 != "0" * 5))
 
             # print()
+
+            if(d_instruction.name != "NOP" and d_instruction.name != "N/A" 
+            and ((prev_stall_id == d_instruction.id and stall) or prev_stall_id != d_instruction.id)):
+                instr_num += 1
+
+            if(instr_num > 1 and (SHOW_INSTR or SHOW_INSTR_NO_NUM)): 
+                if(prev_stall_id != d_instruction.id):
+                    '''During a back-to-back stall do not reprint the instruction stuck in the Decode stage.'''
+                    print_instruction(d_instruction, instr_num - 1 if SHOW_INSTR else None)
+                elif(stall):
+                    if(SHOW_INSTR):
+                        print(f'{instr_num}. STALL')
+                    elif(SHOW_INSTR_NO_NUM):
+                        print('STALL')
+                
+            
+            if(stall): prev_stall_id = d_instruction.id
+            else: prev_stall_id = None
+
+            # pipeline.print()
+            
+            
+            # print()
+
+            success = True
+            err = None
+            if(d_instruction.name != "NOP"):
+                (success, err) = decode_check(d_instruction, line)
+
+            if(not success and d_instruction.name != "N/A"):
+                print(
+                    f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<DECODE> PC: {dec_to_hex(bin_to_dec(d_instruction.pc), 8)}. Instruction: {dec_to_hex(bin_to_dec(d_instruction.binary), 8)} - {get_print_instruction(d_instruction)}, did not DECODE correctly'
+                )
+            if(err):
+                print(err)
+            if(STOP_ON_ERR and not success and d_instruction.name != "N/A"):
+                print(f'\n{"Stopping execution..." if STOP_ON_ERR else ""}\n')
+                break
+            if(END_ON_ECALL and d_instruction.name == "ECALL"):
+                    print(f'ECALL: $finish, LINE: {iterator} (end of program)\n')
+                    break
 
                 
         elif(stage == 'R'):
@@ -1857,7 +2084,7 @@ def main():
 
                 if(not success):
                     print(
-                        f'<REGISTER> Instruction: {dec_to_hex(bin_to_dec(d_instruction.binary), 8)} - {get_print_instruction(d_instruction)}, REGISTER FILE was not updated correctly.'
+                        f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<REGISTER> PC: {dec_to_hex(bin_to_dec(d_instruction.pc), 8)}. Instruction: {dec_to_hex(bin_to_dec(d_instruction.binary), 8)} - {get_print_instruction(d_instruction)}, REGISTER FILE was not updated correctly'
                     )
                 if(err):
                     print(err)
@@ -1890,7 +2117,7 @@ def main():
 
                 if (not success):
                         print(
-                            f'<EXECUTE> Instruction: {dec_to_hex(bin_to_dec(x_instruction.binary), 8)} - {get_print_instruction(x_instruction)}, did not EXECUTE correctly.'
+                            f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<EXECUTE> PC: {dec_to_hex(bin_to_dec(x_instruction.pc), 8)}. Instruction: {dec_to_hex(bin_to_dec(x_instruction.binary), 8)} - {get_print_instruction(x_instruction)}, did not EXECUTE correctly'
                         )
                 if(err):
                     print(err)
@@ -1911,7 +2138,7 @@ def main():
 
                 if (not success):
                         print(
-                            f'<MEMORY> Instruction: {dec_to_hex(bin_to_dec(m_instruction.binary), 8)} - {get_print_instruction(m_instruction)}, MEMORY (dmemory) was not updated correctly.'
+                            f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<MEMORY> PC: {dec_to_hex(bin_to_dec(m_instruction.pc), 8)}. Instruction: {dec_to_hex(bin_to_dec(m_instruction.binary), 8)} - {get_print_instruction(m_instruction)}, MEMORY (dmemory) was not updated correctly'
                         )
                 if(err):
                     print(err)
@@ -1932,7 +2159,7 @@ def main():
 
                 if (not success):
                         print(
-                            f'<WRITE> Instruction: {dec_to_hex(bin_to_dec(w_instruction.binary), 8)} - {get_print_instruction(w_instruction)}, did not WRITE correctly.'
+                            f'<TRACE> ERROR LINE: {iterator} in {TRACE}\n<WRITE> PC: {dec_to_hex(bin_to_dec(w_instruction.pc), 8)}. Instruction: {dec_to_hex(bin_to_dec(w_instruction.binary), 8)} - {get_print_instruction(w_instruction)}, did not WRITE correctly'
                         )
                 if(err):
                     print(err)
